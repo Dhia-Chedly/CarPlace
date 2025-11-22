@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from routers import  new_cars, used_cars , dealers , users
+from routers import  auth, new_cars, used_cars , admin
 
 from database import Base, engine
 
@@ -10,9 +10,8 @@ Base.metadata.create_all(bind=engine)
 # routers
 app.include_router(used_cars.router)
 app.include_router(new_cars.router)
-app.include_router(dealers.router)
-app.include_router(users.router)
-
+app.include_router(auth.router)
+app.include_router(admin.router)
 @app.get("/")
 def root():
     return {"message": "Welcome to the Car API 🚗"}

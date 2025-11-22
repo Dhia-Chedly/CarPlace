@@ -1,50 +1,100 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import date
 from uuid import UUID
+from typing import Optional
 
-# --- New Car Creation ---
-class NewCarCreateWithNames(BaseModel):
-    brand: str
-    model: str
-    category: str
-    dealer: str   
+# --- JWT/OAuth2 Schemas ---
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+    role: Optional[str] = None
+
+# --- User Schemas ---
+class UserCreate(BaseModel):
+    username: str = Field(..., description="Unique username for login")
+    password: str = Field(..., min_length=6,max_length=72, description="Password for the user")
+    role: str = Field(..., description="User role: 'seller' or 'dealer'")
+    name: Optional[str] = None
+    phone: Optional[str] = None
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    role: str
+    name: Optional[str] = None
+    phone: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+# --- New Car Schemas ---
+class NewCarCreate(BaseModel):
+    brand_name: str
+    model_name: str
+    category_name: str
     price_tnd: float
-    valid_until: date | None = None
+    valid_until: Optional[date] = None
 
-# --- New Car Response ---
+
 class NewCarResponse(BaseModel):
-    id: UUID  
+    id: UUID
     model_id: int
     category_id: int
     dealer_id: int
     price_tnd: float
-    valid_until: date | None = None
+    valid_until: Optional[date] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
-# --- New Car Update ---
 class NewCarUpdate(BaseModel):
-    model_id: int | None = None
-    category_id: int | None = None
-    dealer_id: int | None = None
-    price_tnd: float | None = None
-    valid_until: date | None = None
+    model_id: Optional[int] = None
+    category_id: Optional[int] = None
+    dealer_id: Optional[int] = None
+    price_tnd: Optional[float] = None
+    valid_until: Optional[date] = None
 
-
-# --- Used Car Creation ---
-class UsedCarCreateWithNames(BaseModel):
+# --- New Car Readable Response ---
+class NewCarReadableResponse(BaseModel):
+    id: UUID
     brand: str
     model: str
-    user: str   
+    category: str
+    dealer: str
+    price_tnd: float
+    valid_until: Optional[date] = None
+
+    class Config:
+        from_attributes = True
+
+# --- Used Car Readable Response ---
+class UsedCarReadableResponse(BaseModel):
+    id: UUID
+    brand: str
+    model: str
+    seller: str
     year: int
     mileage_km: int
     price_tnd: float
     condition: str
 
-# --- Used Car Response ---
+    class Config:
+        from_attributes = True
+# --- Used Car Schemas ---
+class UsedCarCreate(BaseModel):
+    brand_name: str
+    model_name: str
+    year: int
+    mileage_km: int
+    price_tnd: float
+    condition: str
+
+
 class UsedCarResponse(BaseModel):
-    id: UUID   
+    id: UUID
     model_id: int
     user_id: int
     year: int
@@ -53,31 +103,12 @@ class UsedCarResponse(BaseModel):
     condition: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
-# --- Used Car Update ---
 class UsedCarUpdate(BaseModel):
-    model_id: int | None = None
-    user_id: int | None = None
-    year: int | None = None
-    mileage_km: int | None = None
-    price_tnd: float | None = None
-    condition: str | None = None
-
-
-# --- Dealer Schemas ---
-class DealerCreate(BaseModel):
-    name: str
-    contact: str | None = None
-
-class DealerResponse(BaseModel):
-    id: int
-    name: str
-    contact: str | None = None
-
-    class Config:
-        orm_mode = True
-
-class DealerUpdate(BaseModel):
-    name: str | None = None
-    contact: str | None = None
+    model_id: Optional[int] = None
+    user_id: Optional[int] = None
+    year: Optional[int] = None
+    mileage_km: Optional[int] = None
+    price_tnd: Optional[float] = None
+    condition: Optional[str] = None

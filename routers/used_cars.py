@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from models import Brand, Model, User, UsedCar
-from schemas import UsedCarCreateWithNames, UsedCarResponse, UsedCarUpdate
+from routers.auth import get_seller_user, get_current_user
+from schemas import UsedCarCreate, UsedCarResponse, UsedCarUpdate , UsedCarReadableResponse
+from uuid import UUID
 
-router = APIRouter(prefix="/cars/used", tags=["used cars"])
+router = APIRouter(prefix="/cars/used", tags=["used cars (Seller Only)"])
 
 def get_db():
     db = SessionLocal()
@@ -13,37 +15,20 @@ def get_db():
     finally:
         db.close()
 
-# --- Create a used car (with brand/model/user names) ---
-@router.post("/", response_model=UsedCarResponse)
-def add_used_car(car: UsedCarCreateWithNames, db: Session = Depends(get_db)):
-    # Ensure brand exists
-    brand = db.query(Brand).filter(Brand.name == car.brand).first()
+# --- Create a used car (Seller Only) ---
+@router.post("/", response_model=UsedCarReadableResponse)
+def add_used_car(car: UsedCarCreate, db: Session = Depends(get_db), current_seller: User = Depends(get_seller_user)):
+    brand = db.query(Brand).filter(Brand.name == car.brand_name).first()
     if not brand:
-        brand = Brand(name=car.brand)
-        db.add(brand)
-        db.commit()
-        db.refresh(brand)
+        raise HTTPException(status_code=400, detail=f"Brand '{car.brand_name}' does not exist.")
 
-    # Ensure model exists
-    model = db.query(Model).filter(Model.name == car.model, Model.brand_id == brand.id).first()
+    model = db.query(Model).filter(Model.name == car.model_name, Model.brand_id == brand.id).first()
     if not model:
-        model = Model(name=car.model, brand_id=brand.id)
-        db.add(model)
-        db.commit()
-        db.refresh(model)
+        raise HTTPException(status_code=400, detail=f"Model '{car.model_name}' does not exist for brand '{car.brand_name}'.")
 
-    # Ensure user exists
-    user = db.query(User).filter(User.name == car.user).first()
-    if not user:
-        user = User(name=car.user, type="private")  
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-
-    # Create used car with UUID
     db_car = UsedCar(
         model_id=model.id,
-        user_id=user.id,
+        user_id=current_seller.id,
         year=car.year,
         mileage_km=car.mileage_km,
         price_tnd=car.price_tnd,
@@ -52,39 +37,81 @@ def add_used_car(car: UsedCarCreateWithNames, db: Session = Depends(get_db)):
     db.add(db_car)
     db.commit()
     db.refresh(db_car)
-    return db_car
+    return {
+        "id": db_car.id,
+        "brand": brand.name,
+        "model": model.name,
+        "seller": current_seller.username,
+        "year": db_car.year,
+        "mileage_km": db_car.mileage_km,
+        "price_tnd": db_car.price_tnd,
+        "condition": db_car.condition
+    }
 
-# --- List all used cars ---
-@router.get("/", response_model=list[UsedCarResponse])
+
+@router.get("/", response_model=list[UsedCarReadableResponse])
 def list_used_cars(db: Session = Depends(get_db)):
-    return db.query(UsedCar).all()
+    cars = db.query(UsedCar).all()
+    return [
+        {
+            "id": car.id,
+            "brand": car.model_ref.brand.name,
+            "model": car.model_ref.name,
+            "seller": car.user_ref.username,  # seller is a User
+            "year": car.year,
+            "mileage_km": car.mileage_km,
+            "price_tnd": car.price_tnd,
+            "condition": car.condition
+        }
+        for car in cars
+    ]
 
-# --- Get a single used car by UUID ---
-@router.get("/{car_id}", response_model=UsedCarResponse)
-def get_used_car(car_id: str, db: Session = Depends(get_db)):
+@router.get("/{car_id}", response_model=UsedCarReadableResponse)
+def get_used_car(car_id: UUID, db: Session = Depends(get_db)):
     car = db.query(UsedCar).filter(UsedCar.id == car_id).first()
     if car is None:
         raise HTTPException(status_code=404, detail="Used car not found")
-    return car
+    return {
+        "id": car.id,
+        "brand": car.model_ref.brand.name,
+        "model": car.model_ref.name,
+        "seller": car.user_ref.username,
+        "year": car.year,
+        "mileage_km": car.mileage_km,
+        "price_tnd": car.price_tnd,
+        "condition": car.condition
+    }
 
-# --- Update a used car by UUID ---
+
+# --- Update a used car by UUID (Seller Only, must own) ---
 @router.put("/{car_id}", response_model=UsedCarResponse)
-def update_used_car(car_id: str, updated_data: UsedCarUpdate, db: Session = Depends(get_db)):
+def update_used_car(car_id: str, updated_data: UsedCarUpdate, db: Session = Depends(get_db), current_seller: User = Depends(get_seller_user)):
+    """Updates a used car listing. Accessible only by the creating seller."""
     car = db.query(UsedCar).filter(UsedCar.id == car_id).first()
     if car is None:
         raise HTTPException(status_code=404, detail="Used car not found")
+        
+    # Check if the authenticated user is the one who listed the car
+    if car.user_id != current_seller.id:
+         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this listing.")
+
     for key, value in updated_data.dict(exclude_unset=True).items():
         setattr(car, key, value)
     db.commit()
     db.refresh(car)
     return car
 
-# --- Delete a used car by UUID ---
-@router.delete("/{car_id}")
-def delete_used_car(car_id: str, db: Session = Depends(get_db)):
+# --- Delete a used car by UUID (Seller Only, must own) ---
+@router.delete("/{car_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_used_car(car_id: str, db: Session = Depends(get_db), current_seller: User = Depends(get_seller_user)):
+    """Deletes a used car listing. Accessible only by the creating seller."""
     car = db.query(UsedCar).filter(UsedCar.id == car_id).first()
     if car is None:
-        raise HTTPException(status_code=404, detail="Used car not found")
+        return # Idempotent deletion
+
+    # Check if the authenticated user is the one who listed the car
+    if car.user_id != current_seller.id:
+         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this listing.")
+
     db.delete(car)
     db.commit()
-    return {"message": "Used car deleted successfully"}
