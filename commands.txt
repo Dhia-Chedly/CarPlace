@@ -1,0 +1,3 @@
+psql -U postgres -d car_api_db -h localhost -p 8000
+uvicorn main:app --reload --port 5000
+\dt CarPlace.*
