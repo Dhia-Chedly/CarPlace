@@ -1,18 +1,18 @@
 from fastapi import APIRouter , HTTPException
 from pydantic import BaseModel
-class Car(BaseModel):
+'''class Car(BaseModel):
     id: int
     brand: str
     model: str
-    year: int
+    year: int'''
 
 router = APIRouter(prefix="/cars", tags=["cars"])
 
 # Dummy data
-cars_db = [
+'''cars_db = [
     {"id": 1, "brand": "Toyota", "model": "Corolla", "year": 2025},
     {"id": 2, "brand": "Peugeot", "model": "208", "year": 2025}
-]
+]'''
 # --- Endpoints ---
 
 # GET all cars
