@@ -10,7 +10,7 @@ from schemas import UserOut, UserCreate, Token
 from database import get_db
 
 # --- Config ---
-SECRET_KEY = "CHANGE_ME"  # Replace with env var in production
+SECRET_KEY = "eyyyyyyy"  
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
@@ -79,13 +79,13 @@ def register(payload: UserCreate, db: Session = Depends(get_db)) -> UserOut:
 
 @router.post("/login", response_model=Token)
 def login(
-    # CHANGE THESE LINES
+
     email: str = Form(...), 
     password: str = Form(...), 
-    # END CHANGES
+
     db: Session = Depends(get_db)
 ) -> Token:
-    # The rest of your logic remains the same:
+
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")

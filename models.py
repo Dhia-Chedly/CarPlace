@@ -63,7 +63,7 @@ class Version(Base):
     __tablename__ = "versions"
     id = Column(Integer, primary_key=True, index=True)
     model_id = Column(Integer, ForeignKey("models.id", ondelete="CASCADE"), nullable=False)
-    dealer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False) # User with role 'dealer'
+    dealer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False) 
     name = Column(String(100), nullable=False)
     year = Column(Integer)
     transmission = Column(String(50))
@@ -83,7 +83,7 @@ class Car(Base):
     __tablename__ = "cars"
     id = Column(Integer, primary_key=True, index=True)
     model_id = Column(Integer, ForeignKey("models.id", ondelete="CASCADE"), nullable=False)
-    seller_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False) # User with role 'seller'
+    seller_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False) 
     
     year = Column(Integer, nullable=False)
     mileage = Column(Integer, nullable=False)
@@ -103,7 +103,7 @@ class Car(Base):
     features = relationship("CarFeature", back_populates="car", cascade="all, delete-orphan")
 
 
-# --- Used Cars M2M Association Tables (CRITICAL for used_cars.py) ---
+# --- Used Cars M2M Association Tables ---
 
 class CarCategoryMap(Base):
     __tablename__ = "car_category_map"
@@ -122,10 +122,10 @@ class CarFeature(Base):
     feature = relationship("Feature")
 
 
-# --- Dealers & Showrooms (Only basic Dealer model included for completeness) ---
+# --- Dealers & Showrooms ---
 
 class Dealer(Base):
-    __tablename__ = "dealers_meta" # Renamed to avoid confusion with User(role=dealer)
+    __tablename__ = "dealers_meta" 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     location = Column(String(100))

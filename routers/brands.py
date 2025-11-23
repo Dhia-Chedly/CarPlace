@@ -44,7 +44,6 @@ def list_models_by_brand(
     order_by: str = Query("name"),
     order_dir: str = Query("asc", regex="^(asc|desc)$")
 ) -> List[ModelOut]:
-    # Check for brand existence first
     brand = db.query(Brand).filter(Brand.id == brand_id).first()
     if not brand:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found")

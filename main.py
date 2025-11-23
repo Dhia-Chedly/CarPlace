@@ -1,14 +1,13 @@
 from fastapi import FastAPI
-# Renamed 'modeels' to 'public_models' and added 'brands' and 'dealers'
+
 from routers import auth, new_cars, used_cars, admin, brands, dealers, public_models 
 
-# ADDED 'create_schema_if_not_exists'
 from database import Base, engine, create_schema_if_not_exists 
 
 
 app = FastAPI(title="Car API", version="1.0")
 
-# --- FIX: Ensure the schema exists before creating tables ---
+# --- Ensure the schema exists before creating tables ---
 create_schema_if_not_exists(engine)
 
 # Ensure all models are loaded before creating tables
