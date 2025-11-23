@@ -1,0 +1,18 @@
+{
+  "email": "admin@example.com",
+  "password": "SecurePass123!",
+  "role": "admin",
+  "full_name": "System Administrator"
+}
+{
+  "email": "seller@example.com",
+  "password": "SellerPass456!",
+  "role": "seller",
+  "full_name": "John Seller"
+}
+{
+  "email": "dealer@example.com",
+  "password": "DealerPass789!",
+  "role": "dealer",
+  "full_name": "Car Dealer Inc."
+}

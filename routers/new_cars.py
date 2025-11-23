@@ -1,122 +1,130 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from database import SessionLocal
-from models import Brand, Model, Category, NewCar, User
-from routers.auth import get_dealer_user, get_current_user 
-from schemas import NewCarCreate, NewCarResponse, NewCarUpdate , NewCarReadableResponse
-from uuid import UUID
+from sqlalchemy import asc, desc, func
+from database import get_db
+from models import Brand, Model, Version, User, UserRole
+from schemas import VersionCreate, VersionUpdate, VersionOut
+from .auth import role_required
+from typing import List
 
 router = APIRouter(prefix="/cars/new", tags=["new cars (Dealer Only)"])
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-# --- Create a new car (Dealer Only) ---
-@router.post("/", response_model=NewCarReadableResponse)
-def add_new_car(car: NewCarCreate, db: Session = Depends(get_db), current_dealer: User = Depends(get_dealer_user)):
-    # Find brand
-    brand = db.query(Brand).filter(Brand.name == car.brand_name).first()
-    if not brand:
-        raise HTTPException(status_code=400, detail=f"Brand '{car.brand_name}' does not exist.")
-
-    # Find model under that brand
-    model = db.query(Model).filter(Model.name == car.model_name, Model.brand_id == brand.id).first()
+# --- Create a new car version (Dealer Only) ---
+@router.post("/", response_model=VersionOut, status_code=status.HTTP_201_CREATED)
+def add_new_car(
+    payload: VersionCreate,
+    db: Session = Depends(get_db),
+    current_dealer: User = Depends(role_required(UserRole.dealer))
+) -> VersionOut:
+    # 1. Validate model existence
+    model = db.query(Model).filter(Model.id == payload.model_id).first()
     if not model:
-        raise HTTPException(status_code=400, detail=f"Model '{car.model_name}' does not exist for brand '{car.brand_name}'.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Model does not exist.")
+    
+    # 2. Unique Constraint Check for Version Name
+    existing_version = db.query(Version).filter(
+        Version.model_id == payload.model_id,
+        Version.name.ilike(payload.name) # Use ilike for case-insensitive check
+    ).first()
+    if existing_version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, 
+            detail="A version with this name already exists for this model."
+        )
 
-    # Find category
-    category = db.query(Category).filter(Category.name == car.category_name).first()
-    if not category:
-        raise HTTPException(status_code=400, detail=f"Category '{car.category_name}' does not exist.")
-
-    db_car = NewCar(
-        model_id=model.id,
-        category_id=category.id,
-        dealer_id=current_dealer.id,
-        price_tnd=car.price_tnd,
-        valid_until=car.valid_until
-    )
-    db.add(db_car)
+    # 3. Create
+    version = Version(**payload.dict(), dealer_id=current_dealer.id)
+    db.add(version)
     db.commit()
-    db.refresh(db_car)
-    return {
-        "id": db_car.id,
-        "brand": brand.name,
-        "model": model.name,
-        "category": category.name,
-        "dealer": current_dealer.username,
-        "price_tnd": db_car.price_tnd,
-        "valid_until": db_car.valid_until
-    }
+    db.refresh(version)
+    return version
 
+# --- List all new cars ---
+@router.get("/", response_model=List[VersionOut])
+def list_new_cars(
+    db: Session = Depends(get_db),
+    brand: str | None = Query(None),
+    model: str | None = Query(None),
+    fuel_type: str | None = Query(None),
+    transmission: str | None = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    order_by: str | None = Query("name"),
+    order_dir: str = Query("asc", regex="^(asc|desc)$")
+) -> List[VersionOut]:
+    query = db.query(Version).join(Model).join(Brand)
+    # Use .ilike for case-insensitive filtering
+    if brand:
+        query = query.filter(Brand.name.ilike(f"%{brand}%"))
+    if model:
+        query = query.filter(Model.name.ilike(f"%{model}%"))
+    if fuel_type:
+        query = query.filter(Version.fuel_type.ilike(f"%{fuel_type}%"))
+    if transmission:
+        query = query.filter(Version.transmission.ilike(f"%{transmission}%"))
+    
+    if order_by and hasattr(Version, order_by):
+        col = getattr(Version, order_by)
+        query = query.order_by(asc(col) if order_dir == "asc" else desc(col))
+    
+    return query.offset(offset).limit(limit).all()
 
+# --- Get a new car version by ID ---
+@router.get("/{version_id}", response_model=VersionOut)
+def get_new_car(version_id: int, db: Session = Depends(get_db)) -> VersionOut:
+    version = db.query(Version).filter(Version.id == version_id).first()
+    if not version:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="New car not found")
+    return version
 
-@router.get("/", response_model=list[NewCarReadableResponse])
-def list_new_cars(db: Session = Depends(get_db)):
-    cars = db.query(NewCar).all()
-    return [
-        {
-            "id": car.id,
-            "brand": car.model_ref.brand.name,
-            "model": car.model_ref.name,
-            "category": car.category_ref.name,
-            "dealer": car.dealer_ref.username,  # dealer is a User
-            "price_tnd": car.price_tnd,
-            "valid_until": car.valid_until
-        }
-        for car in cars
-    ]
-
-@router.get("/{car_id}", response_model=NewCarReadableResponse)
-def get_new_car(car_id: UUID, db: Session = Depends(get_db)):
-    car = db.query(NewCar).filter(NewCar.id == car_id).first()
-    if car is None:
-        raise HTTPException(status_code=404, detail="New car not found")
-    return {
-        "id": car.id,
-        "brand": car.model_ref.brand.name,
-        "model": car.model_ref.name,
-        "category": car.category_ref.name,
-        "dealer": car.dealer_ref.username,
-        "price_tnd": car.price_tnd,
-        "valid_until": car.valid_until
-    }
-
-# --- Update a car by UUID (Dealer Only, must own) ---
-@router.put("/{car_id}", response_model=NewCarResponse)
-def update_new_car(car_id: str, updated_data: NewCarUpdate, db: Session = Depends(get_db), current_dealer: User = Depends(get_dealer_user)):
-    """Updates a new car listing. Accessible only by the creating dealer."""
-    car = db.query(NewCar).filter(NewCar.id == car_id).first()
-    if car is None:
-        raise HTTPException(status_code=404, detail="New car not found")
+# --- Update a car version (Dealer Only, must own) ---
+@router.put("/{version_id}", response_model=VersionOut)
+def update_new_car(
+    version_id: int,
+    payload: VersionUpdate,
+    db: Session = Depends(get_db),
+    current_dealer: User = Depends(role_required(UserRole.dealer))
+) -> VersionOut:
+    version = db.query(Version).filter(Version.id == version_id, Version.dealer_id == current_dealer.id).first()
+    if not version:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized or version not found")
+    
+    for k, v in payload.dict(exclude_unset=True).items():
+        setattr(version, k, v)
         
-    # Check if the authenticated dealer is the one who listed the car
-    db_dealer = db.query(Dealer).filter(Dealer.name == current_dealer.name).first()
-    if not db_dealer or car.dealer_id != db_dealer.id:
-         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to update this listing.")
-
-    for key, value in updated_data.dict(exclude_unset=True).items():
-        setattr(car, key, value)
     db.commit()
-    db.refresh(car)
-    return car
+    db.refresh(version)
+    return version
 
-# --- Delete a car by UUID (Dealer Only, must own) ---
-@router.delete("/{car_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_new_car(car_id: str, db: Session = Depends(get_db), current_dealer: User = Depends(get_dealer_user)):
-    """Deletes a new car listing. Accessible only by the creating dealer."""
-    car = db.query(NewCar).filter(NewCar.id == car_id).first()
-    if car is None:
-        return # Idempotent deletion
-
-    # Check if the authenticated dealer is the one who listed the car
-    db_dealer = db.query(Dealer).filter(Dealer.name == current_dealer.name).first()
-    if not db_dealer or car.dealer_id != db_dealer.id:
-         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this listing.")
-
-    db.delete(car)
+# --- Delete a car version (Dealer Only, must own) ---
+@router.delete("/{version_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_new_car(
+    version_id: int,
+    db: Session = Depends(get_db),
+    current_dealer: User = Depends(role_required(UserRole.dealer))
+) -> None:
+    version = db.query(Version).filter(Version.id == version_id, Version.dealer_id == current_dealer.id).first()
+    if not version:
+        return  # Idempotent deletion
+    db.delete(version)
     db.commit()
+
+# --- List my new cars (Dealer Only) ---
+@router.get("/mine", response_model=List[VersionOut])
+def list_my_new_cars(
+    db: Session = Depends(get_db),
+    current_dealer: User = Depends(role_required(UserRole.dealer)),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> List[VersionOut]:
+    return db.query(Version).filter(Version.dealer_id == current_dealer.id).offset(offset).limit(limit).all()
+
+# --- Dealer Stats for current dealer ---
+@router.get("/stats/mine")
+def dealer_stats(
+    db: Session = Depends(get_db),
+    current_dealer: User = Depends(role_required(UserRole.dealer))
+):
+    total_versions = db.query(Version).filter(Version.dealer_id == current_dealer.id).count()
+    avg_price = db.query(func.avg(Version.price)).filter(Version.dealer_id == current_dealer.id).scalar()
+    return {"dealer_id": current_dealer.id, "total_versions": total_versions, "avg_price": avg_price}

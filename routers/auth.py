@@ -1,141 +1,96 @@
-import os
-from datetime import datetime, timedelta, timezone
-from typing import Optional
-
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
-from passlib.context import CryptContext
+from datetime import datetime, timedelta
+from typing import Optional, Set
+from fastapi import APIRouter, Depends, HTTPException, status ,Form
+from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from passlib.context import CryptContext
+from sqlalchemy.orm import Session
+from models import User, UserRole
+from schemas import UserOut, UserCreate, Token
+from database import get_db
 
-from database import SessionLocal
-from models import User
-from schemas import UserCreate, UserResponse, Token, TokenData
-
-# --- Configuration ---
-SECRET_KEY = os.environ.get("SECRET_KEY", "your-super-secret-key-that-should-be-kept-secret")
+# --- Config ---
+SECRET_KEY = "CHANGE_ME"  # Replace with env var in production
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-# Security setup
+# --- Security ---
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
-router = APIRouter(prefix="/auth", tags=["Authentication & Users"])
+# --- Auth utils ---
 
-# Dependency to get the database session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_context.verify(plain, hashed)
 
-# --- Security Utility Functions ---
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+def hash_password(plain: str) -> str:
+    return pwd_context.hash(plain)
 
-def get_password_hash(password):
-    return pwd_context.hash(password)
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-# --- Authentication Dependencies ---
-def get_user_by_username(db: Session, username: str):
-    return db.query(User).filter(User.username == username).first()
-
-def authenticate_user(db: Session, username: str, password: str):
-    user = get_user_by_username(db, username)
-    if not user or not verify_password(password, user.hashed_password):
-        return None
-    return user
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
-    credentials_exception = HTTPException(
+    cred_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        role: str = payload.get("role")
-        if username is None or role is None:
-            raise credentials_exception
-        token_data = TokenData(username=username, role=role)
+        user_id: int = int(payload.get("sub"))
+        if user_id is None:
+            raise cred_exc
     except JWTError:
-        raise credentials_exception
-    
-    user = get_user_by_username(db, token_data.username)
-    if user is None:
-        raise credentials_exception
-    return user
-
-# Role-specific dependencies
-def get_dealer_user(user: User = Depends(get_current_user)):
-    if user.role != 'dealer':
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied. Must be a dealer.")
-    return user
-
-def get_seller_user(user: User = Depends(get_current_user)):
-    if user.role != 'seller':
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied. Must be a seller.")
-    return user
-
-def get_admin_user(user: User = Depends(get_current_user)):
-    if user.role != 'admin':
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied. Must be an admin.")
-    return user
-
-# --- Auth Endpoints ---
-@router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    """Registers a new user (seller or dealer)."""
-    if user.role not in ['dealer', 'seller','admin']:
-        raise HTTPException(status_code=400, detail="Invalid role. Must be 'dealer' or 'seller' or 'admin'.")
-        
-    db_user = get_user_by_username(db, username=user.username)
-    if db_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
-        
-    hashed_password = get_password_hash(user.password)
-
-    db_user = User(
-        username=user.username, 
-        hashed_password=hashed_password, 
-        role=user.role,
-        name=user.name,
-        phone=user.phone
-    )
-    
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
-
-@router.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    """OAuth2 login endpoint. Returns an access token."""
-    user = authenticate_user(db, form_data.username, form_data.password)
+        raise cred_exc
+    # Check for user existence and active status
+    user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username, "role": user.role}, expires_delta=access_token_expires
+        raise cred_exc
+    return user
+
+def role_required(*allowed: UserRole):
+    allowed_roles: Set[UserRole] = set(allowed)
+    def checker(user: User = Depends(get_current_user)) -> User:
+        if user.role not in allowed_roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        return user
+    return checker
+
+# --- Router ---
+router = APIRouter(prefix="/auth", tags=["auth"])
+
+@router.post("/register", response_model=UserOut)
+def register(payload: UserCreate, db: Session = Depends(get_db)) -> UserOut:
+    if db.query(User).filter(User.email.ilike(payload.email)).first():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+    user = User(
+        email=payload.email,
+        hashed_password=hash_password(payload.password),
+        role=payload.role,
+        full_name=payload.full_name,
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
 
-@router.get("/me", response_model=UserResponse)
-def read_users_me(current_user: User = Depends(get_current_user)):
-    """Retrieves the authenticated user's information."""
-    return current_user
-
+@router.post("/login", response_model=Token)
+def login(
+    # CHANGE THESE LINES
+    email: str = Form(...), 
+    password: str = Form(...), 
+    # END CHANGES
+    db: Session = Depends(get_db)
+) -> Token:
+    # The rest of your logic remains the same:
+    user = db.query(User).filter(User.email == email).first()
+    if not user or not verify_password(password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+    
+    token = create_access_token(
+        {"sub": str(user.id), "role": user.role.value}
+    )
+    return Token(access_token=token)

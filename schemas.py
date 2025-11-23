@@ -1,114 +1,157 @@
-from pydantic import BaseModel, Field
-from datetime import date
-from uuid import UUID
-from typing import Optional
+from pydantic import BaseModel, EmailStr
+from typing import Optional, List, Set, Dict, Any
+from datetime import datetime, date
+from enum import Enum
 
-# --- JWT/OAuth2 Schemas ---
+# --- Auth / User ---
+
+class UserRole(str, Enum):
+    admin = "admin"
+    seller = "seller"
+    dealer = "dealer"
+
+class UserBase(BaseModel):
+    email: EmailStr
+    full_name: Optional[str]
+
+class UserCreate(UserBase):
+    password: str
+    role: UserRole
+
+class UserOut(UserBase):
+    id: int
+    role: UserRole
+    is_active: bool
+    created_at: datetime
+    class Config:
+        orm_mode = True
+
 class Token(BaseModel):
     access_token: str
-    token_type: str
+    token_type: str = "bearer"
 
-class TokenData(BaseModel):
-    username: Optional[str] = None
-    role: Optional[str] = None
-
-# --- User Schemas ---
-class UserCreate(BaseModel):
-    username: str = Field(..., description="Unique username for login")
-    password: str = Field(..., min_length=6,max_length=72, description="Password for the user")
-    role: str = Field(..., description="User role: 'seller' or 'dealer'")
-    name: Optional[str] = None
-    phone: Optional[str] = None
-
-class UserResponse(BaseModel):
+class DealerMetaOut(BaseModel):
     id: int
-    username: str
-    role: str
-    name: Optional[str] = None
-    phone: Optional[str] = None
-
+    name: str
+    location: Optional[str]
+    contact: Optional[str]
     class Config:
-        from_attributes = True
-
-# --- New Car Schemas ---
-class NewCarCreate(BaseModel):
-    brand_name: str
-    model_name: str
-    category_name: str
-    price_tnd: float
-    valid_until: Optional[date] = None
+        orm_mode = True
 
 
-class NewCarResponse(BaseModel):
-    id: UUID
+# --- Reference Schemas ---
+
+class BrandBase(BaseModel):
+    name: str
+    country: Optional[str]
+
+class BrandOut(BrandBase):
+    id: int
+    class Config: orm_mode = True
+
+class ModelBase(BaseModel):
+    name: str
+    brand_id: int
+
+class ModelOut(BaseModel):
+    id: int
+    name: str
+    brand_id: int
+    brand: BrandOut
+    class Config:
+        orm_mode = True
+
+
+class CategoryOut(BaseModel):
+    id: int
+    name: str
+    class Config: orm_mode = True
+
+class FeatureOut(BaseModel):
+    id: int
+    name: str
+    class Config: orm_mode = True
+
+# --- Admin ---
+class AdminStatsOut(BaseModel):
+    total_brands: int
+    total_models: int
+    total_categories: int
+    total_new_cars: int
+    total_users: int
+
+# --- New Cars (Version) ---
+
+class VersionBase(BaseModel):
+    name: str
     model_id: int
-    category_id: int
+    year: int
+    transmission: str
+    fuel_type: str
+    horsepower: int
+    price: float
+
+class VersionCreate(VersionBase):
+    pass
+
+class VersionUpdate(BaseModel):
+    name: Optional[str]
+    year: Optional[int]
+    transmission: Optional[str]
+    fuel_type: Optional[str]
+    horsepower: Optional[int]
+    price: Optional[float]
+
+class VersionOut(VersionBase):
+    id: int
     dealer_id: int
-    price_tnd: float
-    valid_until: Optional[date] = None
+    class Config: orm_mode = True
 
-    class Config:
-        from_attributes = True
+# --- Used Cars (Car) ---
 
-class NewCarUpdate(BaseModel):
-    model_id: Optional[int] = None
-    category_id: Optional[int] = None
-    dealer_id: Optional[int] = None
-    price_tnd: Optional[float] = None
-    valid_until: Optional[date] = None
-
-# --- New Car Readable Response ---
-class NewCarReadableResponse(BaseModel):
-    id: UUID
-    brand: str
-    model: str
-    category: str
-    dealer: str
-    price_tnd: float
-    valid_until: Optional[date] = None
-
-    class Config:
-        from_attributes = True
-
-# --- Used Car Readable Response ---
-class UsedCarReadableResponse(BaseModel):
-    id: UUID
-    brand: str
-    model: str
-    seller: str
-    year: int
-    mileage_km: int
-    price_tnd: float
-    condition: str
-
-    class Config:
-        from_attributes = True
-# --- Used Car Schemas ---
 class UsedCarCreate(BaseModel):
+    # Brand/Model details used for lookup, not saving as strings
     brand_name: str
     model_name: str
+    
     year: int
-    mileage_km: int
-    price_tnd: float
-    condition: str
-
-
-class UsedCarResponse(BaseModel):
-    id: UUID
-    model_id: int
-    user_id: int
-    year: int
-    mileage_km: int
-    price_tnd: float
-    condition: str
-
-    class Config:
-        from_attributes = True
+    mileage: int
+    transmission: str
+    fuel_type: str
+    horsepower: int
+    price: float
+    location: Optional[str]
+    description: Optional[str]
+    # CRITICAL: Fields to handle many-to-many relationship creation
+    category_ids: List[int] = [] 
+    feature_ids: List[int] = []
 
 class UsedCarUpdate(BaseModel):
-    model_id: Optional[int] = None
-    user_id: Optional[int] = None
-    year: Optional[int] = None
-    mileage_km: Optional[int] = None
-    price_tnd: Optional[float] = None
-    condition: Optional[str] = None
+    year: Optional[int]
+    mileage: Optional[int]
+    transmission: Optional[str]
+    fuel_type: Optional[str]
+    horsepower: Optional[int]
+    price: Optional[float]
+    location: Optional[str]
+    description: Optional[str]
+
+class UsedCarOut(BaseModel):
+    id: int
+    brand_name: str
+    model_name: str
+    seller_id: int
+    year: int
+    mileage: int
+    transmission: str
+    fuel_type: str
+    horsepower: int
+    price: float
+    location: Optional[str]
+    description: Optional[str]
+    posted_at: datetime
+    # Nested lists for M2M relations
+    categories: List[CategoryOut] = []
+    features: List[FeatureOut] = []
+    class Config: 
+        orm_mode = True

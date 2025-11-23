@@ -1,97 +1,132 @@
-import uuid
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey , DateTime, func
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
-from database import Base
+from sqlalchemy import Column, Integer, String, ForeignKey, DECIMAL, Boolean, Date, Text, TIMESTAMP, Enum, UniqueConstraint
+from sqlalchemy.orm import relationship, declarative_base
+from datetime import datetime
+import enum
+from database import Base # Import Base from the central database file
 
-# --- Brand ---
-class Brand(Base):
-    __tablename__ = "brands"
-    __table_args__ = {"schema": "CarPlace"}
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String, unique=True, nullable=False)
+# --- User & Roles ---
 
-    models = relationship("Model", back_populates="brand")
+class UserRole(str, enum.Enum):
+    admin = "admin"
+    seller = "seller"
+    dealer = "dealer"
 
-# --- Model ---
-class Model(Base):
-    __tablename__ = "models"
-    __table_args__ = {"schema": "CarPlace"}
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String, nullable=False)
-    brand_id = Column(Integer, ForeignKey("CarPlace.brands.id"))
-
-    brand = relationship("Brand", back_populates="models")
-    new_cars = relationship("NewCar", back_populates="model_ref")
-    used_cars = relationship("UsedCar", back_populates="model_ref")
-
-# --- Category ---
-class Category(Base):
-    __tablename__ = "categories"
-    __table_args__ = {"schema": "CarPlace"}
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String, unique=True)
-
-    new_cars = relationship("NewCar", back_populates="category_ref")
-
-# --- User ---
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = {"schema": "CarPlace"}
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    role = Column(Enum(UserRole), nullable=False)
+    full_name = Column(String(255))
+    is_active = Column(Boolean, default=True)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
 
-    # Auth fields
-    username = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    role = Column(String, default="seller", nullable=False)  # seller, dealer, admin
+    # Ownership relations
+    used_cars = relationship("Car", back_populates="seller", cascade="all, delete")
+    dealer_versions = relationship("Version", back_populates="dealer", cascade="all, delete")
 
-    # Optional profile info
-    name = Column(String)
-    phone = Column(String)
+# --- Reference Tables ---
 
-    # Relationships
-    used_cars = relationship("UsedCar", back_populates="user_ref")
-    new_cars = relationship("NewCar", back_populates="dealer_ref")
+class Brand(Base):
+    __tablename__ = "brands"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, nullable=False)
+    country = Column(String(100))
+    models = relationship("Model", back_populates="brand", cascade="all, delete-orphan")
 
-# --- New Car ---
-class NewCar(Base):
-    __tablename__ = "new_cars"
-    __table_args__ = {"schema": "CarPlace"}
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    model_id = Column(Integer, ForeignKey("CarPlace.models.id"))
-    category_id = Column(Integer, ForeignKey("CarPlace.categories.id"))
-    dealer_id = Column(Integer, ForeignKey("CarPlace.users.id"))  
-    price_tnd = Column(Float)
-    valid_until = Column(Date)
+class Model(Base):
+    __tablename__ = "models"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    brand_id = Column(Integer, ForeignKey("brands.id", ondelete="CASCADE"), nullable=False)
 
-    model_ref = relationship("Model", back_populates="new_cars")
-    category_ref = relationship("Category", back_populates="new_cars")
-    dealer_ref = relationship("User", back_populates="new_cars")
+    brand = relationship("Brand", back_populates="models")
+    versions = relationship("Version", back_populates="model", cascade="all, delete-orphan")
+    cars = relationship("Car", back_populates="model", cascade="all, delete-orphan")
+    
+    __table_args__ = (UniqueConstraint('name', 'brand_id', name='_name_brand_uc'),)
 
-# --- Used Car ---
-class UsedCar(Base):
-    __tablename__ = "used_cars"
-    __table_args__ = {"schema": "CarPlace"}
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    model_id = Column(Integer, ForeignKey("CarPlace.models.id"))
-    user_id = Column(Integer, ForeignKey("CarPlace.users.id")) 
+class Category(Base):
+    __tablename__ = "categories"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, nullable=False)
+    # No direct relationship to Car, uses CarCategoryMap for M2M
+
+class Feature(Base):
+    __tablename__ = "features"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, nullable=False)
+
+# --- New Cars (Version) ---
+
+class Version(Base):
+    __tablename__ = "versions"
+    id = Column(Integer, primary_key=True, index=True)
+    model_id = Column(Integer, ForeignKey("models.id", ondelete="CASCADE"), nullable=False)
+    dealer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False) # User with role 'dealer'
+    name = Column(String(100), nullable=False)
     year = Column(Integer)
-    mileage_km = Column(Integer)
-    price_tnd = Column(Float)
-    condition = Column(String)
+    transmission = Column(String(50))
+    fuel_type = Column(String(50))
+    horsepower = Column(Integer)
+    price = Column(DECIMAL(10, 2), nullable=False)
 
-    model_ref = relationship("Model", back_populates="used_cars")
-    user_ref = relationship("User", back_populates="used_cars")
+    model = relationship("Model", back_populates="versions")
+    dealer = relationship("User", back_populates="dealer_versions")
+    
+    __table_args__ = (UniqueConstraint('name', 'model_id', name='_version_name_model_uc'),)
 
-# --- Admin logs table ---
-class AdminLog(Base):
-    __tablename__ = "admin_logs"
-    __table_args__ = {"schema": "CarPlace"}
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    admin_id = Column(Integer, ForeignKey("CarPlace.users.id"), nullable=False)
-    action = Column(String, nullable=False)          
-    target_id = Column(Integer, nullable=False)      
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+# --- Used Cars (Car) ---
 
-    admin = relationship("User")
+class Car(Base):
+    __tablename__ = "cars"
+    id = Column(Integer, primary_key=True, index=True)
+    model_id = Column(Integer, ForeignKey("models.id", ondelete="CASCADE"), nullable=False)
+    seller_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False) # User with role 'seller'
+    
+    year = Column(Integer, nullable=False)
+    mileage = Column(Integer, nullable=False)
+    transmission = Column(String(50))
+    fuel_type = Column(String(50))
+    horsepower = Column(Integer)
+    price = Column(DECIMAL(10, 2), nullable=False)
+    location = Column(String(100))
+    description = Column(Text)
+    posted_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+    model = relationship("Model", back_populates="cars")
+    seller = relationship("User", back_populates="used_cars")
+    
+    # Many-to-Many relationships via association tables
+    categories = relationship("CarCategoryMap", back_populates="car", cascade="all, delete-orphan")
+    features = relationship("CarFeature", back_populates="car", cascade="all, delete-orphan")
+
+
+# --- Used Cars M2M Association Tables (CRITICAL for used_cars.py) ---
+
+class CarCategoryMap(Base):
+    __tablename__ = "car_category_map"
+    car_id = Column(Integer, ForeignKey("cars.id", ondelete="CASCADE"), primary_key=True)
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"), primary_key=True)
+
+    car = relationship("Car", back_populates="categories")
+    category = relationship("Category")
+
+class CarFeature(Base):
+    __tablename__ = "car_features"
+    car_id = Column(Integer, ForeignKey("cars.id", ondelete="CASCADE"), primary_key=True)
+    feature_id = Column(Integer, ForeignKey("features.id", ondelete="CASCADE"), primary_key=True)
+
+    car = relationship("Car", back_populates="features")
+    feature = relationship("Feature")
+
+
+# --- Dealers & Showrooms (Only basic Dealer model included for completeness) ---
+
+class Dealer(Base):
+    __tablename__ = "dealers_meta" # Renamed to avoid confusion with User(role=dealer)
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    location = Column(String(100))
+    contact = Column(String(100))
