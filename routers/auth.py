@@ -79,17 +79,14 @@ def register(payload: UserCreate, db: Session = Depends(get_db)) -> UserOut:
 
 @router.post("/login", response_model=Token)
 def login(
-
     email: str = Form(...), 
     password: str = Form(...), 
-
     db: Session = Depends(get_db)
 ) -> Token:
 
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
-    
     token = create_access_token(
         {"sub": str(user.id), "role": user.role.value}
     )

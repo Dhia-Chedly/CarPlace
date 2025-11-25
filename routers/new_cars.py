@@ -24,7 +24,7 @@ def add_new_car(
     # 2. Unique Constraint Check for Version Name
     existing_version = db.query(Version).filter(
         Version.model_id == payload.model_id,
-        Version.name.ilike(payload.name) # Use ilike for case-insensitive check
+        Version.name.ilike(payload.name) 
     ).first()
     if existing_version:
         raise HTTPException(

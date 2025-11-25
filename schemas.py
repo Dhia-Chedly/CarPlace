@@ -24,7 +24,7 @@ class UserOut(UserBase):
     is_active: bool
     created_at: datetime
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class Token(BaseModel):
     access_token: str
@@ -36,7 +36,7 @@ class DealerMetaOut(BaseModel):
     location: Optional[str]
     contact: Optional[str]
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # --- Reference Schemas ---
@@ -47,7 +47,7 @@ class BrandBase(BaseModel):
 
 class BrandOut(BrandBase):
     id: int
-    class Config: orm_mode = True
+    class Config: from_attributes = True
 
 class ModelBase(BaseModel):
     name: str
@@ -59,18 +59,18 @@ class ModelOut(BaseModel):
     brand_id: int
     brand: BrandOut
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class CategoryOut(BaseModel):
     id: int
     name: str
-    class Config: orm_mode = True
+    class Config: from_attributes=True
 
 class FeatureOut(BaseModel):
     id: int
     name: str
-    class Config: orm_mode = True
+    class Config: from_attributes=True
 
 # --- Admin ---
 class AdminStatsOut(BaseModel):
@@ -105,7 +105,7 @@ class VersionUpdate(BaseModel):
 class VersionOut(VersionBase):
     id: int
     dealer_id: int
-    class Config: orm_mode = True
+    class Config: from_attributes = True
 
 # --- Used Cars (Car) ---
 
@@ -154,4 +154,4 @@ class UsedCarOut(BaseModel):
     categories: List[CategoryOut] = []
     features: List[FeatureOut] = []
     class Config: 
-        orm_mode = True
+        from_attributes = True

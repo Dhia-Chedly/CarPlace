@@ -71,4 +71,3 @@ def get_dealer_meta(dealer_id: int, db: Session = Depends(get_db)):
     if not dealer_meta:
         raise HTTPException(status_code=404, detail="Dealer metadata not found")
     return dealer_meta
-

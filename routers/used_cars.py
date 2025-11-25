@@ -6,7 +6,6 @@ from models import Brand, Model, User, UserRole, Car, CarCategoryMap, CarFeature
 from schemas import UsedCarCreate, UsedCarUpdate, UsedCarOut, CategoryOut, FeatureOut
 from .auth import role_required
 from typing import List, Optional
-from services.vin_decoder import decode_vin
 router = APIRouter(prefix="/cars/used", tags=["used cars (Seller Only)"])
 
 

@@ -32,6 +32,7 @@ class Brand(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False)
     country = Column(String(100))
+    wmi = Column(String(4), unique=True, nullable=True)
     models = relationship("Model", back_populates="brand", cascade="all, delete-orphan")
 
 class Model(Base):
@@ -39,7 +40,7 @@ class Model(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     brand_id = Column(Integer, ForeignKey("brands.id", ondelete="CASCADE"), nullable=False)
-
+    vds = Column(String(10), nullable=True)
     brand = relationship("Brand", back_populates="models")
     versions = relationship("Version", back_populates="model", cascade="all, delete-orphan")
     cars = relationship("Car", back_populates="model", cascade="all, delete-orphan")

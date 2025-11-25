@@ -53,6 +53,3 @@ def list_models_by_brand(
         col = getattr(Model, order_by)
         query = query.order_by(asc(col) if order_dir == "asc" else desc(col))
     return query.offset(offset).limit(limit).all()
-
-
-

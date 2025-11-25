@@ -7,3 +7,6 @@ python-jose[cryptography]
 passlib[bcrypt]
 bcrypt==4.0.1 # avoid compatibility issues with passlib  
 bs4
+httpx
+pillow 
+pytesseract
