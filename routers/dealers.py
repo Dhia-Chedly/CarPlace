@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import asc, desc
 from database import get_db
-# Import Version model for listing dealer cars
 from models import User, UserRole, Version , Dealer
 from schemas import UserOut, VersionOut , DealerMetaOut
 from typing import List
