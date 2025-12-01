@@ -43,7 +43,6 @@ def list_cars_by_dealer(
     if not dealer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dealer not found")
     
-    # Use Version model to filter by dealer_id
     return db.query(Version).filter(Version.dealer_id == dealer_id).offset(offset).limit(limit).all()
 
 # --- Search dealers by name/email ---

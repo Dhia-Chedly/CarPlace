@@ -53,7 +53,6 @@ def list_new_cars(
     order_dir: str = Query("asc", regex="^(asc|desc)$")
 ) -> List[VersionOut]:
     query = db.query(Version).join(Model).join(Brand)
-    # Use .ilike for case-insensitive filtering
     if brand:
         query = query.filter(Brand.name.ilike(f"%{brand}%"))
     if model:
@@ -105,7 +104,7 @@ def delete_new_car(
 ) -> None:
     version = db.query(Version).filter(Version.id == version_id, Version.dealer_id == current_dealer.id).first()
     if not version:
-        return  # Idempotent deletion
+        return  HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized or version not found")
     db.delete(version)
     db.commit()
 

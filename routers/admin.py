@@ -127,7 +127,7 @@ def update_model(model_id: int, payload: ModelBase, db: Session = Depends(get_db
 
 
 @router.get("/models", response_model=List[ModelOut])
-def list_models( # Renamed internally for consistency, route is fine
+def list_models( 
     db: Session = Depends(get_db),
     user=Depends(role_required(UserRole.admin)),
     limit: int = Query(20, ge=1, le=100),

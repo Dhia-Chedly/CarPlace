@@ -178,7 +178,7 @@ def delete_used_car(
 ) -> None:
     car = db.query(Car).filter(Car.id == car_id, Car.seller_id == current_seller.id).first()
     if not car:
-        return  # Idempotent deletion
+        return  HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized or car not found")
     db.delete(car)
     db.commit()
 

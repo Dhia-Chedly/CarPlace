@@ -39,7 +39,7 @@ def get_model(model_id: int, db: Session = Depends(get_db)) -> ModelOut:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model not found")
     return model
 
-# --- Get models by brand ID (Renamed endpoint from '/brand/{brand_id}' to '/by-brand/{brand_id}' to avoid ambiguity) ---
+# --- Get models by brand ID ---
 @router.get("/by-brand/{brand_id}", response_model=List[ModelOut])
 def get_models_by_brand(
     brand_id: int,

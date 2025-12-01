@@ -1,8 +1,8 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DECIMAL, Boolean, Date, Text, TIMESTAMP, Enum, UniqueConstraint
 from sqlalchemy.orm import relationship, declarative_base
-from datetime import datetime
+from datetime import datetime 
 import enum
-from database import Base # Import Base from the central database file
+from database import Base 
 
 # --- User & Roles ---
 
@@ -24,6 +24,8 @@ class User(Base):
     # Ownership relations
     used_cars = relationship("Car", back_populates="seller", cascade="all, delete")
     dealer_versions = relationship("Version", back_populates="dealer", cascade="all, delete")
+    bids = relationship("Bid", back_populates="user")
+    auctions_won = relationship("Auction", back_populates="winner")
 
 # --- Reference Tables ---
 
@@ -74,7 +76,8 @@ class Version(Base):
 
     model = relationship("Model", back_populates="versions")
     dealer = relationship("User", back_populates="dealer_versions")
-    
+    auctions = relationship("Auction", back_populates="vehicle", cascade="all, delete-orphan")
+
     __table_args__ = (UniqueConstraint('name', 'model_id', name='_version_name_model_uc'),)
 
 
@@ -131,3 +134,40 @@ class Dealer(Base):
     name = Column(String(100), nullable=False)
     location = Column(String(100))
     contact = Column(String(100))
+
+# --- BIDS TABLE ---
+class Bid(Base):
+    __tablename__ = "bids"
+
+    id = Column(Integer, primary_key=True, index=True)
+    auction_id = Column(Integer, ForeignKey("auctions.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    amount = Column(DECIMAL(10, 2), nullable=False)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+    auction = relationship("Auction", back_populates="bids")
+    user = relationship("User", back_populates="bids")
+
+class AuctionStatus(enum.Enum):
+    pending = "pending"
+    active = "active"
+    closed = "closed"
+# --- AUCTIONS TABLE ---
+class Auction(Base):
+    __tablename__ = "auctions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    vehicle_id = Column(Integer, ForeignKey("versions.id"), nullable=False)
+    starting_bid = Column(DECIMAL(10, 2), nullable=False)
+    reserve_price = Column(DECIMAL(10, 2), nullable=False)
+    duration = Column(Integer, nullable=False)  # in minutes
+    status = Column(Enum(AuctionStatus), default=AuctionStatus.pending)
+    highest_bid = Column(DECIMAL(10, 2))
+    highest_bidder_id = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    ends_at = Column(TIMESTAMP)
+
+    vehicle = relationship("Version", back_populates="auctions")
+    bids = relationship("Bid", back_populates="auction")
+    winner = relationship("User", back_populates="auctions_won")
+

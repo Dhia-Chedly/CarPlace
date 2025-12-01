@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from routers import auth, new_cars, used_cars, admin, brands, dealers, public_models, vin_decoder , compare
+from routers import auth, new_cars, used_cars, admin, brands, dealers, public_models, vin_decoder , compare , auction
 
 from database import Base, engine, create_schema_if_not_exists 
 
@@ -23,6 +23,7 @@ app.include_router(new_cars.router)
 app.include_router(used_cars.router)
 app.include_router(vin_decoder.router)
 app.include_router(compare.router)
+app.include_router(auction.router)
 
 @app.get("/")
 def root():

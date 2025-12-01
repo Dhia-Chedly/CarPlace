@@ -110,7 +110,6 @@ class VersionOut(VersionBase):
 # --- Used Cars (Car) ---
 
 class UsedCarCreate(BaseModel):
-    # Brand/Model details used for lookup, not saving as strings
     brand_name: str
     model_name: str
     
@@ -122,7 +121,7 @@ class UsedCarCreate(BaseModel):
     price: float
     location: Optional[str]
     description: Optional[str]
-    # CRITICAL: Fields to handle many-to-many relationship creation
+    # Fields to handle many-to-many relationship creation
     category_ids: List[int] = [] 
     feature_ids: List[int] = []
 
@@ -155,3 +154,9 @@ class UsedCarOut(BaseModel):
     features: List[FeatureOut] = []
     class Config: 
         from_attributes = True
+
+class AuctionCreateRequest(BaseModel):
+    version_id: int
+    starting_bid: float
+    reserve_price: float
+    duration: int

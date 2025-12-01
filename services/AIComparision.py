@@ -29,5 +29,6 @@ def generate_comparison(car1: dict, car2: dict) -> str:
     )
 
     result = generator(prompt, max_length=60, num_return_sequences=1)
-    summary = result[0]["generated_text"]
-    return summary
+    generated_text = result[0]["generated_text"]
+    answer = generated_text[len(prompt):].strip()
+    return answer
