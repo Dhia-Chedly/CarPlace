@@ -160,3 +160,75 @@ class AuctionCreateRequest(BaseModel):
     starting_bid: float
     reserve_price: float
     duration: int
+
+
+# --- Messaging / Conversations ---
+class MessageBase(BaseModel):
+    body: str
+
+class MessageCreate(MessageBase):
+    conversation_id: int
+
+class MessageUpdate(BaseModel):
+    read_at: Optional[datetime] = None
+
+class MessageOut(BaseModel):
+    id: int
+    conversation_id: int
+    sender: UserOut
+    body: str
+    sent_at: datetime
+    read_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
+class ConversationCreate(BaseModel):
+    used_car_id: int
+    owner_id: Optional[int] = None
+    initial_message: Optional[str] = None
+
+
+class ConversationOut(BaseModel):
+    id: int
+    used_car_id: int
+    buyer: UserOut
+    owner: UserOut
+    created_at: datetime
+    last_message_at: datetime
+    last_message: Optional[MessageOut] = None
+
+    class Config:
+        from_attributes = True
+
+class ConversationWithMessagesOut(ConversationOut):
+    messages: List[MessageOut] = []
+
+    class Config:
+        from_attributes = True
+
+# --- AI Messaging ---
+class AIMessageBase(BaseModel):
+    role: str
+    content: str
+
+class AIMessageOut(AIMessageBase):
+    id: int
+    sent_at: datetime
+    class Config:
+        from_attributes = True
+
+class AIConversationBase(BaseModel):
+    used_car_id: Optional[int] = None
+
+class AIConversationOut(AIConversationBase):
+    id: int
+    user_id: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class AIConversationWithMessagesOut(AIConversationOut):
+    messages: List[AIMessageOut] = []
+    class Config:
+        from_attributes = True
+

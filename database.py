@@ -1,13 +1,18 @@
+import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine , MetaData, text 
 from sqlalchemy.orm import sessionmaker, declarative_base , Session
 from typing import Generator
 
+load_dotenv()
+
 # --- Database URL ---
 
-DATABASE_URL = "postgresql://postgres:yeahdhia1@localhost:8000/car_api_db"
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:yeahdhia1@localhost:8000/car_api_db")
 
 # --- Engine ---
-engine = create_engine(DATABASE_URL, echo=False, future=True)
+# Use a short connect timeout so app startup doesn't hang if DB is unreachable
+engine = create_engine(DATABASE_URL, echo=False, future=True, connect_args={"connect_timeout": 5})
 
 # --- Session ---
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -21,11 +26,13 @@ Base = declarative_base(metadata=metadata)
 def create_schema_if_not_exists(engine):
     
     schema_name = metadata.schema
-    
-    with engine.connect() as connection:
-        
-        connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS \"{schema_name}\"")) 
-        connection.commit()
+    try:
+        with engine.connect() as connection:
+            connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS \"{schema_name}\""))
+            connection.commit()
+    except Exception as e:
+        # Don't block app startup on DB/schema errors; log and continue.
+        print(f"Warning: could not create schema '{schema_name}' at startup: {e}")
 
 # --- Dependency ---
 def get_db() -> Generator[Session, None, None]:

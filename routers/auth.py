@@ -9,10 +9,15 @@ from models import User, UserRole
 from schemas import UserOut, UserCreate, Token
 from database import get_db
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # --- Config ---
-SECRET_KEY = "eyyyyyyy"  
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+SECRET_KEY = os.getenv("SECRET_KEY", "eyyyyyyy")  
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
 # --- Security ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")

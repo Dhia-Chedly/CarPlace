@@ -26,6 +26,9 @@ class User(Base):
     dealer_versions = relationship("Version", back_populates="dealer", cascade="all, delete")
     bids = relationship("Bid", back_populates="user")
     auctions_won = relationship("Auction", back_populates="winner")
+    conversations_as_buyer = relationship("Conversation", foreign_keys="[Conversation.buyer_id]", back_populates="buyer", cascade="all, delete-orphan")
+    conversations_as_owner = relationship("Conversation", foreign_keys="[Conversation.owner_id]", back_populates="owner", cascade="all, delete-orphan")
+    messages_sent = relationship("Message",foreign_keys="[Message.sender_id]", back_populates="sender", cascade="all, delete-orphan")
 
 # --- Reference Tables ---
 
@@ -170,4 +173,71 @@ class Auction(Base):
     vehicle = relationship("Version", back_populates="auctions")
     bids = relationship("Bid", back_populates="auction")
     winner = relationship("User", back_populates="auctions_won")
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Conversation is only for used car listings
+    used_car_id = Column(Integer, ForeignKey("cars.id", ondelete="CASCADE"), nullable=False)
+
+    # Participants
+    buyer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    last_message_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+    # Relationships
+    used_car = relationship("Car")
+
+    buyer = relationship("User", foreign_keys=[buyer_id], back_populates="conversations_as_buyer")
+    owner = relationship("User", foreign_keys=[owner_id], back_populates="conversations_as_owner")
+
+    messages = relationship(
+        "Message",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="Message.sent_at"
+    )
+    __table_args__ = (
+        UniqueConstraint("used_car_id", "buyer_id", name="_conv_usedcar_buyer_uc"),
+    )
+
+class AIConversation(Base):
+    __tablename__ = "ai_conversations"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    used_car_id = Column(Integer, ForeignKey("cars.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+    user = relationship("User")
+    used_car = relationship("Car")
+    messages = relationship("AIMessage", back_populates="conversation", cascade="all, delete-orphan", order_by="AIMessage.sent_at")
+
+class AIMessage(Base):
+    __tablename__ = "ai_messages"
+    id = Column(Integer, primary_key=True, index=True)
+    ai_conversation_id = Column(Integer, ForeignKey("ai_conversations.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(20), nullable=False)  # 'user' or 'assistant'
+    content = Column(Text, nullable=False)
+    sent_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+    conversation = relationship("AIConversation", back_populates="messages")
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+
+    sender_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+    body = Column(Text, nullable=False)
+    sent_at = Column(TIMESTAMP, default=datetime.utcnow)
+    read_at = Column(TIMESTAMP, nullable=True)
+
+    conversation = relationship("Conversation", back_populates="messages")
+    sender = relationship("User", foreign_keys=[sender_id], back_populates="messages_sent")
 
