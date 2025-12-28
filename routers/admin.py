@@ -5,7 +5,7 @@ from database import get_db
 from models import Brand, Model, Category, User, Version, UserRole , Car 
 from schemas import BrandBase, BrandOut, ModelBase, ModelOut, CategoryOut, AdminStatsOut , UserOut
 from .auth import role_required
-from typing import Dict, List
+from typing import List
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 

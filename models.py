@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DECIMAL, Boolean, Date, Text, TIMESTAMP, Enum, UniqueConstraint
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import relationship
 from datetime import datetime 
 import enum
 from database import Base 
@@ -19,6 +19,8 @@ class User(Base):
     role = Column(Enum(UserRole), nullable=False)
     full_name = Column(String(255))
     is_active = Column(Boolean, default=True)
+    otp_code = Column(String(6), nullable=True)
+    otp_expires_at = Column(TIMESTAMP, nullable=True)
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
 
     # Ownership relations

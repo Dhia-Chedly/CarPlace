@@ -16,3 +16,15 @@
   "role": "dealer",
   "full_name": "Car Dealer Inc."
 }
+{
+  "email": "chedlydhia03@example.com",
+  "full_name": "dhaw",
+  "password": "dhaw123",
+  "role": "dealer"
+}
+{
+  "email": "chedlydhia03@gmail.com",
+  "full_name": "dhaw chedly",
+  "password": "dhaw12345",
+  "role": "dealer"
+}

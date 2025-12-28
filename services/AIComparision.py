@@ -98,7 +98,7 @@ async def generate_comparison_with_pdf(
     )
 
     # Call Gemini REST API
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
     headers = {"Content-Type": "application/json"}
     body = {
         "contents": [{"parts": [{"text": gemini_prompt}]}]

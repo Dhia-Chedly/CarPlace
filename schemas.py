@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, List, Set, Dict, Any
-from datetime import datetime, date
+from typing import Optional, List
+from datetime import datetime
 from enum import Enum
 
 # --- Auth / User ---
@@ -29,6 +29,16 @@ class UserOut(UserBase):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+class OTPVerify(BaseModel):
+    email: EmailStr
+    otp_code: str
+
+class LoginResponse(BaseModel):
+    message: str
+    two_factor_required: bool = False
+    access_token: Optional[str] = None
+    token_type: Optional[str] = "bearer"
 
 class DealerMetaOut(BaseModel):
     id: int

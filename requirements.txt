@@ -1,20 +1,17 @@
 fastapi[standard]
 uvicorn[standard]
-pydantic
 sqlalchemy
 psycopg2-binary
 python-jose[cryptography]
 passlib[bcrypt]
 bcrypt==4.0.1 # avoid compatibility issues with passlib  
-bs4
 httpx
 pillow 
 pytesseract
-transformers
 sentence-transformers
-torch==2.9.0
-torchvision==0.24.0
-torchaudio==2.9.0
+torch
+torchvision
+torchaudio
 pdfplumber
 faiss-cpu
 python-dotenv

@@ -18,7 +18,6 @@ if not GEMINI_API_KEY:
     raise RuntimeError("GEMINI_API_KEY is not set")
 
 class ChatIn(BaseModel):
-    ai_conversation_id: int | None = None
     used_car_id: int | None = None
     message: str
 
@@ -36,15 +35,13 @@ async def chat(
     if not user_text:
         raise HTTPException(status_code=400, detail="Empty message")
 
-    # 1. Get or create AI Conversation
-    if payload.ai_conversation_id:
-        conv = db.query(AIConversation).filter(
-            AIConversation.id == payload.ai_conversation_id,
-            AIConversation.user_id == current_user.id
-        ).first()
-        if not conv:
-            raise HTTPException(status_code=404, detail="AI Conversation not found")
-    else:
+    # 1. Get or create AI Conversation automatically
+    conv = db.query(AIConversation).filter(
+        AIConversation.user_id == current_user.id,
+        AIConversation.used_car_id == payload.used_car_id
+    ).first()
+
+    if not conv:
         conv = AIConversation(user_id=current_user.id, used_car_id=payload.used_car_id)
         db.add(conv)
         db.commit()
@@ -84,7 +81,7 @@ async def chat(
     gemini_contents.append({"role": "user", "parts": [{"text": user_text}]})
 
     # 4. Call Gemini
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
     headers = {"Content-Type": "application/json"}
     params = {"key": GEMINI_API_KEY}
     body = {"contents": gemini_contents}
