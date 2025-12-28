@@ -31,6 +31,7 @@ class User(Base):
     conversations_as_buyer = relationship("Conversation", foreign_keys="[Conversation.buyer_id]", back_populates="buyer", cascade="all, delete-orphan")
     conversations_as_owner = relationship("Conversation", foreign_keys="[Conversation.owner_id]", back_populates="owner", cascade="all, delete-orphan")
     messages_sent = relationship("Message",foreign_keys="[Message.sender_id]", back_populates="sender", cascade="all, delete-orphan")
+    dealer_meta = relationship("Dealer", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
 # --- Reference Tables ---
 
@@ -136,9 +137,12 @@ class CarFeature(Base):
 class Dealer(Base):
     __tablename__ = "dealers_meta" 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
     name = Column(String(100), nullable=False)
     location = Column(String(100))
     contact = Column(String(100))
+
+    user = relationship("User", back_populates="dealer_meta")
 
 # --- BIDS TABLE ---
 class Bid(Base):

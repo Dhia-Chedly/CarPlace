@@ -110,11 +110,12 @@ Interactive docs: `http://127.0.0.1:8000/docs`
 - `POST /vin/scan` - OCR Scanner: Extract and decode VIN from image.
 
 ### 🏙️ Dealers (`/dealers`)
-- `GET /dealers` - Directory of active dealers.
+- `GET /dealers` - Directory of active dealers. (Optional: `?include_meta=true`).
 - `GET /dealers/{id}` - Dealer profile summary.
 - `GET /dealers/{id}/cars` - Official dealer inventory.
 - `GET /dealers/search/` - Search dealers by name or contact.
-- `GET /dealers/{id}/meta` - Additional dealer metadata.
+- `GET /dealers/{id}/meta` - Additional dealer metadata (Location, Contact).
+- `PUT /dealers/me/meta` - (Dealer Only) Manage your own showroom metadata.
 
 ### 🛠️ Administration (`/admin`)
 *(Required Admin Role)*

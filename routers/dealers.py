@@ -3,25 +3,32 @@ from sqlalchemy.orm import Session
 from sqlalchemy import asc, desc
 from database import get_db
 from models import User, UserRole, Version , Dealer
-from schemas import UserOut, VersionOut , DealerMetaOut
-from typing import List
+from schemas import UserOut, VersionOut , DealerMetaOut, DealerMetaUpdate, DealerWithMetaOut
+from .auth import get_current_user, role_required
+from typing import List, Union
 
 router = APIRouter(prefix="/dealers", tags=["dealers"])
 
 # --- List all dealers ---
-@router.get("/", response_model=List[UserOut])
+@router.get("/", response_model=List[Union[DealerWithMetaOut, UserOut]])
 def list_dealers(
     db: Session = Depends(get_db),
+    include_meta: bool = Query(False, description="Include dealer metadata"),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     order_by: str = Query("full_name", description="Sort by field"),
     order_dir: str = Query("asc", regex="^(asc|desc)$", description="Sort direction"),
-) -> List[UserOut]:
+) -> List[Union[DealerWithMetaOut, UserOut]]:
     query = db.query(User).filter(User.role == UserRole.dealer, User.is_active == True)
     if hasattr(User, order_by):
         col = getattr(User, order_by)
         query = query.order_by(asc(col) if order_dir == "asc" else desc(col))
-    return query.offset(offset).limit(limit).all()
+    
+    dealers = query.offset(offset).limit(limit).all()
+    
+    if include_meta:
+        return [DealerWithMetaOut.from_orm(d) for d in dealers]
+    return dealers
 
 # --- Get dealer by ID ---
 @router.get("/{dealer_id}", response_model=UserOut)
@@ -65,7 +72,27 @@ def search_dealers(
 # --- Get dealer metadata ---
 @router.get("/{dealer_id}/meta", response_model=DealerMetaOut)
 def get_dealer_meta(dealer_id: int, db: Session = Depends(get_db)):
-    dealer_meta = db.query(Dealer).filter(Dealer.id == dealer_id).first()
+    dealer_meta = db.query(Dealer).filter(Dealer.user_id == dealer_id).first()
     if not dealer_meta:
         raise HTTPException(status_code=404, detail="Dealer metadata not found")
+    return dealer_meta
+
+# --- Update dealer metadata (Self) ---
+@router.put("/me/meta", response_model=DealerMetaOut)
+def update_my_meta(
+    payload: DealerMetaUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(role_required(UserRole.dealer))
+):
+    dealer_meta = db.query(Dealer).filter(Dealer.user_id == current_user.id).first()
+    if not dealer_meta:
+        if not payload.name:
+             raise HTTPException(status_code=400, detail="Name is required for initialization")
+        dealer_meta = Dealer(user_id=current_user.id, **payload.dict(exclude_unset=True))
+        db.add(dealer_meta)
+    else:
+        for key, value in payload.dict(exclude_unset=True).items():
+            setattr(dealer_meta, key, value)
+    db.commit()
+    db.refresh(dealer_meta)
     return dealer_meta

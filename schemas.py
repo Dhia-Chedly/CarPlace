@@ -40,11 +40,27 @@ class LoginResponse(BaseModel):
     access_token: Optional[str] = None
     token_type: Optional[str] = "bearer"
 
-class DealerMetaOut(BaseModel):
-    id: int
+class DealerMetaBase(BaseModel):
     name: str
     location: Optional[str]
     contact: Optional[str]
+
+class DealerMetaCreate(DealerMetaBase):
+    pass
+
+class DealerMetaUpdate(BaseModel):
+    name: Optional[str]
+    location: Optional[str]
+    contact: Optional[str]
+
+class DealerMetaOut(DealerMetaBase):
+    id: int
+    user_id: int
+    class Config:
+        from_attributes = True
+
+class DealerWithMetaOut(UserOut):
+    dealer_meta: Optional[DealerMetaOut] = None
     class Config:
         from_attributes = True
 
