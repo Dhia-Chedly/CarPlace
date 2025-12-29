@@ -49,10 +49,16 @@ GEMINI_API_KEY=your_gemini_api_key
 ```
 
 ### 3. Execution
+#### Local
 ```powershell
 uvicorn main:app --reload
 ```
-Interactive docs: `http://127.0.0.1:8000/docs`
+
+#### Docker (Recommended)
+```powershell
+docker-compose up --build
+```
+Interactive docs: `http://127.0.0.1:5000/docs`
 
 ---
 

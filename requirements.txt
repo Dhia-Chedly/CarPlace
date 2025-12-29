@@ -10,8 +10,6 @@ pillow
 pytesseract
 sentence-transformers
 torch
-torchvision
-torchaudio
 pdfplumber
 faiss-cpu
 python-dotenv
