@@ -28,3 +28,9 @@
   "password": "dhaw12345",
   "role": "dealer"
 }
+{
+  "email": "dhiaedinchedly@gmail.com",
+  "full_name": "Dhia chedly",
+  "password": "brbrbrb",
+  "role": "seller"
+}

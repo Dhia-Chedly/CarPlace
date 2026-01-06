@@ -22,6 +22,7 @@ class UserOut(UserBase):
     id: int
     role: UserRole
     is_active: bool
+    is_2fa_enabled: bool
     created_at: datetime
     class Config:
         from_attributes = True
@@ -34,11 +35,16 @@ class OTPVerify(BaseModel):
     email: EmailStr
     otp_code: str
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 class LoginResponse(BaseModel):
     message: str
     two_factor_required: bool = False
     access_token: Optional[str] = None
     token_type: Optional[str] = "bearer"
+    user: Optional[UserOut] = None
 
 class DealerMetaBase(BaseModel):
     name: str

@@ -109,3 +109,5 @@ async def chat(
 @router.get("/conversations", response_model=List[AIConversationOut])
 def list_ai_conversations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return db.query(AIConversation).filter(AIConversation.user_id == current_user.id).all()
+
+

@@ -56,40 +56,6 @@ def create_brand(payload: BrandBase, db: Session = Depends(get_db), user=Depends
     db.refresh(brand)
     return brand
 
-@router.get("/{brand_id}/stats")
-def brand_stats(brand_id: int, db: Session = Depends(get_db)):
-    brand = db.query(Brand).filter(Brand.id == brand_id).first()
-    if not brand:
-        raise HTTPException(status_code=404, detail="Brand not found")
-    return {
-        "brand_id": brand.id,
-        "brand_name": brand.name,
-        "total_models": db.query(Model).filter(Model.brand_id == brand_id).count()
-    }
-
-@router.get("/brands", response_model=List[BrandOut])
-def list_brands(
-    db: Session = Depends(get_db),
-    user=Depends(role_required(UserRole.admin)),
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    order_by: str | None = Query("name"),
-    order_dir: str = Query("asc", regex="^(asc|desc)$")
-) -> List[BrandOut]:
-    query = db.query(Brand)
-    if order_by and hasattr(Brand, order_by):
-        col = getattr(Brand, order_by)
-        query = query.order_by(asc(col) if order_dir == "asc" else desc(col))
-    return query.offset(offset).limit(limit).all()
-
-@router.delete("/brands/{brand_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(role_required(UserRole.admin))])
-def delete_brand(brand_id: int, db: Session = Depends(get_db)) -> None:
-    brand = db.query(Brand).filter(Brand.id == brand_id).first()
-    if not brand:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found")
-    db.delete(brand)
-    db.commit()
-
 @router.put("/brands/{brand_id}", response_model=BrandOut)
 def update_brand(brand_id: int, payload: BrandBase, db: Session = Depends(get_db), user=Depends(role_required(UserRole.admin))) -> BrandOut:
     brand = db.query(Brand).filter(Brand.id == brand_id).first()
@@ -101,10 +67,18 @@ def update_brand(brand_id: int, payload: BrandBase, db: Session = Depends(get_db
     db.refresh(brand)
     return brand
 
+@router.delete("/brands/{brand_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(role_required(UserRole.admin))])
+def delete_brand(brand_id: int, db: Session = Depends(get_db)) -> None:
+    brand = db.query(Brand).filter(Brand.id == brand_id).first()
+    if not brand:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found")
+    db.delete(brand)
+    db.commit()
+
 # --- Models ---
 
 @router.post("/{brand_id}/models", response_model=ModelOut)
-def create_model_for_brand(brand_id: int, payload: ModelBase, db: Session = Depends(get_db)):
+def create_model_for_brand(brand_id: int, payload: ModelBase, db: Session = Depends(get_db), user=Depends(role_required(UserRole.admin))) -> ModelOut:
     brand = db.query(Brand).filter(Brand.id == brand_id).first()
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
@@ -115,7 +89,7 @@ def create_model_for_brand(brand_id: int, payload: ModelBase, db: Session = Depe
     return model
 
 @router.put("/{model_id}", response_model=ModelOut)
-def update_model(model_id: int, payload: ModelBase, db: Session = Depends(get_db)):
+def update_model(model_id: int, payload: ModelBase, db: Session = Depends(get_db), user=Depends(role_required(UserRole.admin))) -> ModelOut:
     model = db.query(Model).filter(Model.id == model_id).first()
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
@@ -124,23 +98,6 @@ def update_model(model_id: int, payload: ModelBase, db: Session = Depends(get_db
     db.commit()
     db.refresh(model)
     return model
-
-
-@router.get("/models", response_model=List[ModelOut])
-def list_models( 
-    db: Session = Depends(get_db),
-    user=Depends(role_required(UserRole.admin)),
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    order_by: str | None = Query("name"),
-    order_dir: str = Query("asc", regex="^(asc|desc)$")
-) -> List[ModelOut]:
-    query = db.query(Model)
-    if order_by and hasattr(Model, order_by):
-        col = getattr(Model, order_by)
-        query = query.order_by(asc(col) if order_dir == "asc" else desc(col))
-    return query.offset(offset).limit(limit).all()
-
 
 @router.delete("/models/{model_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(role_required(UserRole.admin))])
 def delete_model(model_id: int, db: Session = Depends(get_db)) -> None:
@@ -161,21 +118,6 @@ def create_category(name: str, db: Session = Depends(get_db), user=Depends(role_
     db.commit()
     db.refresh(category)
     return category
-
-@router.get("/categories", response_model=List[CategoryOut])
-def list_categories(
-    db: Session = Depends(get_db),
-    user=Depends(role_required(UserRole.admin)),
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    order_by: str | None = Query("name"),
-    order_dir: str = Query("asc", regex="^(asc|desc)$")
-) -> List[CategoryOut]:
-    query = db.query(Category)
-    if order_by and hasattr(Category, order_by):
-        col = getattr(Category, order_by)
-        query = query.order_by(asc(col) if order_dir == "asc" else desc(col))
-    return query.offset(offset).limit(limit).all()
 
 @router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(role_required(UserRole.admin))])
 def delete_category(category_id: int, db: Session = Depends(get_db)) -> None:
@@ -203,3 +145,19 @@ def list_users(
     offset: int = Query(0, ge=0)
 ) -> List[UserOut]:
     return db.query(User).offset(offset).limit(limit).all()
+
+@router.patch("/users/{user_id}/2fa", response_model=UserOut)
+def toggle_user_2fa(
+    user_id: int,
+    enabled: bool,
+    db: Session = Depends(get_db),
+    admin=Depends(role_required(UserRole.admin))
+) -> UserOut:
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.is_2fa_enabled = enabled
+    db.commit()
+    db.refresh(user)
+    return user

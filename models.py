@@ -19,6 +19,7 @@ class User(Base):
     role = Column(Enum(UserRole), nullable=False)
     full_name = Column(String(255))
     is_active = Column(Boolean, default=True)
+    is_2fa_enabled = Column(Boolean, default=False)
     otp_code = Column(String(6), nullable=True)
     otp_expires_at = Column(TIMESTAMP, nullable=True)
     created_at = Column(TIMESTAMP, default=datetime.utcnow)

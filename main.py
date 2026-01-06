@@ -8,7 +8,7 @@ from routers import auth, new_cars, used_cars, admin, brands, dealers, public_mo
 from database import Base, engine, create_schema_if_not_exists 
 
 
-app = FastAPI(title="Car API", version="1.0")
+app = FastAPI(title="SouQ Craheb API", version="1.0")
 
 # --- Ensure the schema exists before creating tables ---
 create_schema_if_not_exists(engine)
@@ -31,4 +31,4 @@ app.include_router(conversations.router)
 app.include_router(chat.router)
 @app.get("/")
 def root():
-    return {"message": "Welcome to the Car API 🚗"}
+    return {"message": "Welcome to the SouQ Craheb API 🚗"}

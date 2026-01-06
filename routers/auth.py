@@ -1,12 +1,12 @@
 from datetime import datetime, timedelta
 from typing import Optional, Set
 from fastapi import APIRouter, Depends, HTTPException, status ,Form
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from models import User, UserRole
-from schemas import UserOut, UserCreate, Token, OTPVerify, LoginResponse
+from schemas import UserOut, UserCreate, Token, OTPVerify, LoginResponse, LoginRequest
 from database import get_db
 from services.email_service import send_otp_email
 import random
@@ -23,6 +23,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 
 # --- Security ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+bearer_scheme = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # --- Auth utils ---
@@ -39,24 +40,36 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
+def get_current_user(token: Optional[str] = None, db: Session = Depends(get_db), auth: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)) -> User:
+    # Use the manually passed token or the one from the bearer scheme
+    final_token = token
+    if not final_token and auth and hasattr(auth, 'credentials'):
+        final_token = auth.credentials
+
+    
     cred_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    if not final_token:
+        raise cred_exc
+
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(final_token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: int = int(payload.get("sub"))
         if user_id is None:
             raise cred_exc
     except JWTError:
         raise cred_exc
+        
     # Check for user existence and active status
     user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
     if not user:
         raise cred_exc
     return user
+
 
 def role_required(*allowed: UserRole):
     allowed_roles: Set[UserRole] = set(allowed)
@@ -86,27 +99,42 @@ def register(payload: UserCreate, db: Session = Depends(get_db)) -> UserOut:
 
 @router.post("/login", response_model=LoginResponse)
 def login(
-    email: str = Form(...), 
-    password: str = Form(...), 
+    payload: LoginRequest, 
     db: Session = Depends(get_db)
 ) -> LoginResponse:
 
-    user = db.query(User).filter(User.email == email).first()
-    if not user or not verify_password(password, user.hashed_password):
+    user = db.query(User).filter(User.email == payload.username).first()
+    if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Invalid credentials")
     
-    # Generate 6-digit OTP
-    otp_code = f"{random.randint(100000, 999999)}"
-    user.otp_code = otp_code
-    user.otp_expires_at = datetime.utcnow() + timedelta(minutes=5)
-    db.commit()
+    if user.is_2fa_enabled:
+        otp = str(random.randint(100000, 999999))
+        user.otp_code = otp
+        user.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
+        db.commit()
+        
+        try:
+            send_otp_email(user.email, otp)
+        except Exception as e:
+            # In a real scenario, we might log this and still require OTP if we can't send it,
+            # but for this demo, we'll let it fail if email sending fails.
+            raise HTTPException(status_code=500, detail=f"Failed to send 2FA email: {str(e)}")
 
-    # Send OTP via email
-    send_otp_email(user.email, otp_code)
+        return LoginResponse(
+            message="2FA required. Please check your email for the OTP.",
+            two_factor_required=True,
+            user=UserOut.from_orm(user)
+        )
+
+    token = create_access_token(
+        {"sub": str(user.id), "role": user.role.value}
+    )
 
     return LoginResponse(
-        message="OTP sent to your email. Please verify to complete login.",
-        two_factor_required=True
+        message="Login successful",
+        two_factor_required=False,
+        access_token=token,
+        user=UserOut.from_orm(user)
     )
 
 @router.post("/verify-otp", response_model=Token)

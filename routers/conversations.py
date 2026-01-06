@@ -105,28 +105,6 @@ def get_conversation(conversation_id: int, db: Session = Depends(get_db), curren
 
     return _format_conversation(conv, db, include_messages=True)
 
-
-@router.post("/messages", response_model=MessageOut, status_code=status.HTTP_201_CREATED)
-def send_message(
-    payload: MessageCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> MessageOut:
-    conv = db.query(Conversation).filter(Conversation.id == payload.conversation_id).first()
-    if not conv:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
-
-    if current_user.id not in (conv.buyer_id, conv.owner_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a participant")
-
-    msg = Message(conversation_id=conv.id, sender_id=current_user.id, body=payload.body, sent_at=datetime.utcnow())
-    db.add(msg)
-    conv.last_message_at = msg.sent_at
-    db.commit()
-    db.refresh(msg)
-    return _format_message(msg)
-
-
 @router.patch("/messages/{message_id}/read", response_model=MessageOut)
 def mark_read(message_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> MessageOut:
     msg = db.query(Message).filter(Message.id == message_id).first()
@@ -173,7 +151,7 @@ class ChatConnectionManager:
 manager = ChatConnectionManager()
 
 
-@router.websocket("/chat/ws/{conversation_id}")
+@router.websocket("/message/{conversation_id}")
 async def chat_ws(websocket: WebSocket, conversation_id: int, db: Session = Depends(get_db)):
     token = websocket.query_params.get("token")
     if not token:

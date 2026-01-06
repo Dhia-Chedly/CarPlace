@@ -84,9 +84,8 @@ Interactive docs: `http://127.0.0.1:5000/docs`
 - `GET /conversations` - List active P2P chats.
 - `POST /conversations` - Start chat about a listing.
 - `GET /conversations/{id}` - Get chat details and messages.
-- `POST /conversations/messages` - Send a new message.
 - `POST /conversations/messages/{id}/read` - Mark message as read.
-- `WS /conversations/ws/{id}` - Real-time chat WebSocket tunnel.
+- `WS /conversations/message/{id}` - Real-time chat WebSocket tunnel.
 
 ### 🚗 used cars (`/cars/used`)
 - `GET /cars/used` - Search & filter marketplace listings.
