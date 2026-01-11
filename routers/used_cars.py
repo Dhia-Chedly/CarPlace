@@ -136,6 +136,29 @@ def list_used_cars(
     return [format_used_car_output(car) for car in cars]
 
 
+# --- List my used cars (Seller Only) ---
+@router.get("/mine", response_model=List[UsedCarOut])
+def list_my_used_cars(
+    db: Session = Depends(get_db),
+    current_seller: User = Depends(role_required(UserRole.seller)),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> List[UsedCarOut]:
+    cars = db.query(Car).filter(Car.seller_id == current_seller.id).offset(offset).limit(limit).all()
+    return [format_used_car_output(car) for car in cars]
+
+# --- Seller Stats for current seller ---
+@router.get("/stats/mine")
+def seller_stats(
+    db: Session = Depends(get_db),
+    current_seller: User = Depends(role_required(UserRole.seller))
+):
+    total_listings = db.query(Car).filter(Car.seller_id == current_seller.id).count()
+    avg_price = db.query(func.avg(Car.price)).filter(Car.seller_id == current_seller.id).scalar()
+    newest_listing_date = db.query(func.max(Car.posted_at)).filter(Car.seller_id == current_seller.id).scalar()
+    return {"seller_id": current_seller.id, "total_listings": total_listings, "avg_price": avg_price, "newest_listing_date": newest_listing_date}
+
+
 # --- Get a used car by ID ---
 @router.get("/{car_id}", response_model=UsedCarOut)
 def get_used_car(car_id: int, db: Session = Depends(get_db)) -> UsedCarOut:
@@ -181,25 +204,3 @@ def delete_used_car(
         return  HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized or car not found")
     db.delete(car)
     db.commit()
-
-# --- List my used cars (Seller Only) ---
-@router.get("/mine", response_model=List[UsedCarOut])
-def list_my_used_cars(
-    db: Session = Depends(get_db),
-    current_seller: User = Depends(role_required(UserRole.seller)),
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-) -> List[UsedCarOut]:
-    cars = db.query(Car).filter(Car.seller_id == current_seller.id).offset(offset).limit(limit).all()
-    return [format_used_car_output(car) for car in cars]
-
-# --- Seller Stats for current seller ---
-@router.get("/stats/mine")
-def seller_stats(
-    db: Session = Depends(get_db),
-    current_seller: User = Depends(role_required(UserRole.seller))
-):
-    total_listings = db.query(Car).filter(Car.seller_id == current_seller.id).count()
-    avg_price = db.query(func.avg(Car.price)).filter(Car.seller_id == current_seller.id).scalar()
-    newest_listing_date = db.query(func.max(Car.posted_at)).filter(Car.seller_id == current_seller.id).scalar()
-    return {"seller_id": current_seller.id, "total_listings": total_listings, "avg_price": avg_price, "newest_listing_date": newest_listing_date}

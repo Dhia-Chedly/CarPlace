@@ -68,6 +68,26 @@ def list_new_cars(
     
     return query.offset(offset).limit(limit).all()
 
+# --- List my new cars (Dealer Only) ---
+@router.get("/mine", response_model=List[VersionOut])
+def list_my_new_cars(
+    db: Session = Depends(get_db),
+    current_dealer: User = Depends(role_required(UserRole.dealer)),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> List[VersionOut]:
+    return db.query(Version).filter(Version.dealer_id == current_dealer.id).offset(offset).limit(limit).all()
+
+# --- Dealer Stats for current dealer ---
+@router.get("/stats/mine")
+def dealer_stats(
+    db: Session = Depends(get_db),
+    current_dealer: User = Depends(role_required(UserRole.dealer))
+):
+    total_versions = db.query(Version).filter(Version.dealer_id == current_dealer.id).count()
+    avg_price = db.query(func.avg(Version.price)).filter(Version.dealer_id == current_dealer.id).scalar()
+    return {"dealer_id": current_dealer.id, "total_versions": total_versions, "avg_price": avg_price}
+
 # --- Get a new car version by ID ---
 @router.get("/{version_id}", response_model=VersionOut)
 def get_new_car(version_id: int, db: Session = Depends(get_db)) -> VersionOut:
@@ -107,23 +127,3 @@ def delete_new_car(
         return  HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized or version not found")
     db.delete(version)
     db.commit()
-
-# --- List my new cars (Dealer Only) ---
-@router.get("/mine", response_model=List[VersionOut])
-def list_my_new_cars(
-    db: Session = Depends(get_db),
-    current_dealer: User = Depends(role_required(UserRole.dealer)),
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-) -> List[VersionOut]:
-    return db.query(Version).filter(Version.dealer_id == current_dealer.id).offset(offset).limit(limit).all()
-
-# --- Dealer Stats for current dealer ---
-@router.get("/stats/mine")
-def dealer_stats(
-    db: Session = Depends(get_db),
-    current_dealer: User = Depends(role_required(UserRole.dealer))
-):
-    total_versions = db.query(Version).filter(Version.dealer_id == current_dealer.id).count()
-    avg_price = db.query(func.avg(Version.price)).filter(Version.dealer_id == current_dealer.id).scalar()
-    return {"dealer_id": current_dealer.id, "total_versions": total_versions, "avg_price": avg_price}
