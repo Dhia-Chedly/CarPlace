@@ -1,6 +1,6 @@
-# CarPlace API 🚗
+# SouQAuto API 🚗
 
-CarPlace is a comprehensive automotive marketplace. It handles new and used car listings, auctions, real-time messaging, and features a state-of-the-art AI assistant grounded in technical catalogs.
+SouQAuto is a comprehensive automotive marketplace. It handles new and used car listings, auctions, real-time messaging, and features a state-of-the-art AI assistant grounded in technical catalogs.
 
 ## 🏗️ Project Architecture
 
@@ -25,7 +25,8 @@ CarPlace/
 │   ├── used_cars.py        # Marketplace used car listings
 │   └── vin_decoder.py      # VIN Analysis & OCR Scanner
 ├── services/               # Core business logic
-│   └── AIComparision.py    # RAG pipeline (FAISS + PDF processing)
+│   ├── AIComparision.py    # RAG pipeline (FAISS + PDF processing)
+│   └── email_service.py    # SMTP Email Service (2FA OTP)
 └── requirements.txt        # Project dependencies
 ```
 
@@ -46,6 +47,13 @@ Update your `.env` file:
 DATABASE_URL=postgresql://user:password@localhost:5432/dbname
 SECRET_KEY=your_jwt_secret
 GEMINI_API_KEY=your_gemini_api_key
+
+# Email/SMTP Configuration (Required for 2FA)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_app_password
+SMTP_FROM=noreply@souqauto.com
 ```
 
 ### 3. Execution
@@ -66,7 +74,8 @@ Interactive docs: `http://127.0.0.1:5000/docs`
 
 ### 🔐 Authentication (`/auth`)
 - `POST /auth/register` - Create new user account.
-- `POST /auth/login` - Authenticate and receive JWT.
+- `POST /auth/login` - Authenticate and receive JWT (triggers 2FA if enabled).
+- `POST /auth/verify-otp` - Verify OTP code for 2FA login.
 
 ### 🤖 AI Services
 - `POST /chat` - Grounded AI Chat (Listing context + User history).
@@ -141,3 +150,4 @@ Interactive docs: `http://127.0.0.1:5000/docs`
 - **SQLAlchemy**: Powerful ORM for PostgreSQL.
 - **WebSockets**: Real-time bidding and chat synchronization.
 - **Pytesseract**: OCR for VIN scanning.
+- **SMTP Email**: Two-Factor Authentication (2FA) OTP delivery.
